@@ -4,4 +4,7 @@ from flask import Flask
 import serial
 import serial.tools.list_ports
 
+ARDUINO_PORT = None
+BAUD_RATE = 9600
+app = Flask(__name__)
 
