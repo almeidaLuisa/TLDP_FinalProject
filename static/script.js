@@ -162,7 +162,7 @@ async function endSession() {
         await updateUserStats();
         await loadLeaderboard();
         
-        alert(`Session ended! You studied for ${data.duration} minutes.`);
+        alert(`Session ended! You studied for ${data.real_duration_minutes.toFixed(2)} minutes.`);
         
     } catch (err) {
         console.error('Error ending session:', err);
@@ -218,7 +218,7 @@ async function loadLeaderboard() {
         
         tbody.innerHTML = users.map((user, index) => {
             const hours = Math.floor(user.total_study_time / 60);
-            const minutes = user.total_study_time % 60;
+            const minutes = Math.floor(user.total_study_time % 60);
             const timeStr = `${hours}h ${minutes}m`;
             
             return `

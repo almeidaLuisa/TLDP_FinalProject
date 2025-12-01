@@ -27,9 +27,9 @@ def init_db():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT UNIQUE NOT NULL,
-            total_study_time INTEGER DEFAULT 0,
+            total_study_time REAL DEFAULT 0,
             sessions INTEGER DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT (datetime('now', 'localtime'))
         )
     ''')
     
@@ -39,7 +39,7 @@ def init_db():
             user_id INTEGER NOT NULL,
             duration INTEGER NOT NULL,
             locked_until DATETIME NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_at DATETIME DEFAULT (datetime('now', 'localtime')),
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     ''')
@@ -210,40 +210,53 @@ def start_session():
     }), 201
 
 @app.route('/api/sessions/end', methods=['POST'])
+@app.route('/api/sessions/end', methods=['POST'])
+# End an active study session.
+# - Validates that user_id and session_id were provided.
+# - Retrieves the session's start time from the database.
+# - Calculates the actual study duration in seconds.
+# - Converts duration to minutes with decimals allowed if needed.
+# - Updates the user's total study time and increments session count.
+# - Sends an UNLOCK command to the Arduino lockbox.
+# - Returns a JSON response with the real duration (can be less than 1 minute).
 def end_session():
-    """End study session and unlock the box"""
     data = request.json
     user_id = data.get('user_id')
     session_id = data.get('session_id')
-    
+
     if not user_id or not session_id:
         return jsonify({'error': 'user_id and session_id are required'}), 400
-    
+
     conn = get_db()
     cursor = conn.cursor()
-    
-    # Get session duration
-    cursor.execute('SELECT duration FROM sessions WHERE id = ? AND user_id = ?', (session_id, user_id))
+
+    # Fetch session start time
+    cursor.execute('SELECT created_at FROM sessions WHERE id = ? AND user_id = ?', (session_id, user_id))
     session = cursor.fetchone()
-    
+
     if not session:
         conn.close()
         return jsonify({'error': 'Session not found'}), 404
-    
-    duration = session['duration']
-    
-    # Update user total study time
+
+    # Calculate real duration (in minutes, with decimals)
+    start_time = datetime.strptime(session['created_at'], "%Y-%m-%d %H:%M:%S")
+    now = datetime.now()
+
+    total_seconds = (now - start_time).total_seconds()
+    real_duration_minutes = total_seconds / 60  # now accurate even for <1min
+
+    # Update user stats (store minutes, decimal allowed)
     cursor.execute(
         'UPDATE users SET total_study_time = total_study_time + ?, sessions = sessions + 1 WHERE id = ?',
-        (duration, user_id)
+        (real_duration_minutes, user_id)
     )
     conn.commit()
     conn.close()
-    
-    # Unlock the box
+
+    # Unlock hardware
     unlock_box()
-    
-    return jsonify({'message': 'Session ended', 'duration': duration})
+
+    return jsonify({'message': 'Session ended', 'real_duration_minutes': real_duration_minutes})
 
 # Serve HTML
 @app.route('/')
