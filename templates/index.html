@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study App - CellBox</title>
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>📚 CellBox Study Timer</h1>
+            <p id="arduino-status" class="status">Checking Arduino...</p>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- User Section -->
+            <section class="user-section">
+                <h2>Your Profile</h2>
+                <div class="user-form">
+                    <input 
+                        type="text" 
+                        id="username" 
+                        placeholder="Enter your name" 
+                        autocomplete="off"
+                    >
+                    <button onclick="loginUser()">Login</button>
+                </div>
+                <div id="user-info" class="user-info hidden">
+                    <h3 id="user-name"></h3>
+                    <div class="stats">
+                        <div class="stat">
+                            <span class="stat-label">Total Study Time</span>
+                            <span class="stat-value" id="total-study-time">0h 0m</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Sessions</span>
+                            <span class="stat-value" id="sessions-count">0</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Timer Section -->
+            <section class="timer-section" id="timer-section" style="display: none;">
+                <h2>Study Timer</h2>
+                <div class="timer-controls">
+                    <div class="duration-input">
+                        <label for="study-duration">Study Duration (minutes)</label>
+                        <input 
+                            type="number" 
+                            id="study-duration" 
+                            min="1" 
+                            max="240" 
+                            value="25"
+                        >
+                    </div>
+                    <button id="start-btn" onclick="startSession()" class="btn-primary">
+                        🔒 Lock & Start
+                    </button>
+                    <button id="end-btn" onclick="endSession()" class="btn-danger hidden">
+                        🔓 Unlock & End
+                    </button>
+                </div>
+
+                <div id="session-active" class="session-active hidden">
+                    <h3>Study Session Active</h3>
+                    <div class="timer-display">
+                        <div id="time-remaining" class="time">00:00</div>
+                    </div>
+                    <p id="lock-until" class="lock-until"></p>
+                    <div class="progress-bar">
+                        <div id="progress-fill" class="progress-fill"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Leaderboard Section -->
+            <section class="leaderboard-section">
+                <h2>⭐ Leaderboard</h2>
+                <table id="leaderboard" class="leaderboard">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Name</th>
+                            <th>Study Time</th>
+                            <th>Sessions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-body">
+                        <tr><td colspan="4">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </section>
+        </div>
+    </div>
+
+    <script src="static/script.js"></script>
+</body>
+</html>
