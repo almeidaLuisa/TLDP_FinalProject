@@ -4,6 +4,8 @@ import serial
 import serial.tools.list_ports
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template, send_from_directory
+import threading
+import time
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
@@ -48,6 +50,8 @@ def init_db():
 # Arduino Serial Communication
 arduino_port = None
 is_connected = False
+stop_reconnect = False
+reconnect_thread = None
 # Author: Luisa Almeida
 # Date: 2025-12-01
 # find_arduino_port()
@@ -122,24 +126,59 @@ def init_arduino():
         print(f"Failed to connect to Arduino: {e}")
         is_connected = False
         arduino_port = None
+
+def reconnect_arduino():
+    """Background thread to continuously try reconnecting to Arduino"""
+    global arduino_port, is_connected, stop_reconnect
+    
+    print("Starting Arduino reconnection thread...")
+    
+    while not stop_reconnect:
+        if not is_connected:
+            print("Attempting to reconnect to Arduino...")
+            try:
+                port_name = find_arduino_port()
+                if port_name:
+                    test_port = serial.Serial(port_name, 9600, timeout=2)
+                    arduino_port = test_port
+                    is_connected = True
+                    print(f"✓ Reconnected to Arduino on {port_name}")
+                    return
+            except Exception as e:
+                print(f"Reconnection attempt failed: {e}")
+        
+        # Wait 5 seconds before trying again
+        for _ in range(50):
+            if stop_reconnect:
+                break
+            time.sleep(0.1)
+
 def lock_box(duration_minutes):
     """Send lock command to Arduino"""
-    if is_connected and arduino_port:
-        try:
-            command = f"LOCK:{duration_minutes}\n"
-            arduino_port.write(command.encode())
-            print(f"Box locked for {duration_minutes} minutes")
-        except Exception as e:
-            print(f"Error sending lock command: {e}")
+    global is_connected
+    if not is_connected or not arduino_port:
+        print(f"Arduino not connected. Demo mode: Would lock for {duration_minutes} minutes")
+        return
+    try:
+        command = f"LOCK:{duration_minutes}\n"
+        arduino_port.write(command.encode())
+        print(f"Box locked for {duration_minutes} minutes")
+    except Exception as e:
+        print(f"Error sending lock command: {e}")
+        is_connected = False
 
 def unlock_box():
     """Send unlock command to Arduino"""
-    if is_connected and arduino_port:
-        try:
-            arduino_port.write(b"UNLOCK\n")
-            print("Box unlocked")
-        except Exception as e:
-            print(f"Error sending unlock command: {e}")
+    global is_connected
+    if not is_connected or not arduino_port:
+        print("Arduino not connected. Demo mode: Would unlock box")
+        return
+    try:
+        arduino_port.write(b"UNLOCK\n")
+        print("Box unlocked")
+    except Exception as e:
+        print(f"Error sending unlock command: {e}")
+        is_connected = False
 
 # API Routes
 
@@ -310,4 +349,15 @@ def send_static(path):
 if __name__ == '__main__':
     init_db()
     init_arduino()
-    app.run(debug=True, port=5000)
+    
+    # Start reconnection thread as daemon
+    reconnect_thread = threading.Thread(target=reconnect_arduino, daemon=True)
+    reconnect_thread.start()
+    
+    try:
+        app.run(debug=True, port=5000)
+    except KeyboardInterrupt:
+        print("Shutting down...")
+        stop_reconnect = True
+        if arduino_port:
+            arduino_port.close()
