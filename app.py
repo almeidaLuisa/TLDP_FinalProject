@@ -18,7 +18,7 @@ def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
-
+#testing something 
 def init_db():
     conn = get_db()
     cursor = conn.cursor()
