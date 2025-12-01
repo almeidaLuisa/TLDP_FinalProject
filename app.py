@@ -22,7 +22,6 @@ def get_db():
 def init_db():
     conn = get_db()
     cursor = conn.cursor()
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,45 +42,86 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     ''')
-    
     conn.commit()
     conn.close()
 
 # Arduino Serial Communication
 arduino_port = None
 is_connected = False
+# Author: Luisa Almeida
+# Date: 2025-12-01
+# find_arduino_port()
+# Scans all available COM ports and identifies a real Arduino USB device.
 
-def find_arduino():
-    """Find Arduino on available COM ports"""
+# How it works:
+# - Reads every serial port and checks its description + hardware ID.
+# - Looks for known Arduino-related identifiers such as:
+#     "arduino", "ch340", "usb-serial", "cp210", "silabs"
+# - Attempts to open the port to confirm it is a real, accessible device.
+# - Prevents false positives from Bluetooth or virtual ports that contain "USB".
+# Returns:
+#   A string such as 'COM5' if a valid Arduino is found,
+#   or None if no real Arduino device is detected.
+# Prevents:
+#   - Connecting to Bluetooth COM ports
+#   - Marking Arduino as "connected" when the board is not plugged in
+def find_arduino_port():
+    """Scan COM ports and find a REAL Arduino / USB-Serial device."""
+    arduino_keywords = ['arduino', 'ch340', 'usb-serial', 'silabs', 'cp210', 'usb serial']
     ports = serial.tools.list_ports.comports()
     for port in ports:
-        if 'Arduino' in port.description or 'CH340' in port.description or 'USB' in port.description:
-            return port.device
+        desc = port.description.lower()
+        hwid = port.hwid.lower()
+
+        # Check if the port actually looks like an Arduino USB device
+        if any(keyword in desc for keyword in arduino_keywords) or \
+           any(keyword in hwid for keyword in arduino_keywords):
+
+            # Verify we can open it
+            try:
+                ser = serial.Serial(port.device, 9600, timeout=1)
+                ser.close()
+                return port.device
+            except:
+                continue
+
     return None
-
+# Author: Luisa Almeida
+# Date: 2025-12-01
+# init_arduino()
+# Initializes the Arduino USB connection used by the lockbox system.
+# Steps:
+# 1. Calls find_arduino_port() to locate an actual Arduino device.
+# 2. If found, opens the serial connection at 9600 baud.
+# 3. Updates global variables:
+#       - arduino_port   → holds the Serial() object
+#       - is_connected   → True only if connection was successful
+# Behavior:
+# - If no Arduino is found, sets is_connected = False.
+# - Avoids connecting to Bluetooth or invalid ports.
+# - Ensures the UI only shows “Arduino Connected” when a REAL board is detected.
+# Returns:
+#   None
 def init_arduino():
-    """Initialize Arduino connection"""
+    """Initialize Arduino connection."""
     global arduino_port, is_connected
-    try:
-        port_name = find_arduino()
-        if not port_name:
-            # Try common ports manually
-            for port in ['COM3', 'COM4', 'COM5', 'COM6']:
-                try:
-                    arduino_port = serial.Serial(port, 9600, timeout=2)
-                    is_connected = True
-                    print(f"Connected to Arduino on {port}")
-                    return
-                except:
-                    continue
-        else:
-            arduino_port = serial.Serial(port_name, 9600, timeout=2)
-            is_connected = True
-            print(f"Connected to Arduino on {port_name}")
-    except Exception as e:
-        print(f"Arduino connection error: {e}")
-        is_connected = False
 
+    port_name = find_arduino_port()
+
+    if not port_name:
+        print("No Arduino detected.")
+        is_connected = False
+        arduino_port = None
+        return
+
+    try:
+        arduino_port = serial.Serial(port_name, 9600, timeout=2)
+        is_connected = True
+        print(f"Connected to Arduino on {port_name}")
+    except Exception as e:
+        print(f"Failed to connect to Arduino: {e}")
+        is_connected = False
+        arduino_port = None
 def lock_box(duration_minutes):
     """Send lock command to Arduino"""
     if is_connected and arduino_port:
